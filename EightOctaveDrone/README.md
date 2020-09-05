@@ -5,6 +5,10 @@ This is a simple patch for the Field. The keys will determine the root note, and
 ## TODO
 
 * Normalize the final output. (probably scaling the final signal based on the sum of the knob values)
-* Show the knob values on the screen.
+* Figure out how to smoothly update the screen.
 * Use the CV inputs for filtering. 
 * Use the switches to change the knob purposes from component volumes to various effects.
+
+## Added
+
+1. Show the knob values on the screen.

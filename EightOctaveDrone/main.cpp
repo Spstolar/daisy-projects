@@ -1,5 +1,7 @@
 #include "daisy_field.h"
 #include "daisysp.h" // Uncomment this if you want to use the DSP library.
+#include <string>
+#include <cmath> 
 
 #define NUM_VOICES 8
 #define NUM_KEYS 16
@@ -20,6 +22,14 @@ struct voice
         osc_.SetWaveform(daisysp::Oscillator::WAVE_SIN);
         on_ = false;
     }
+    void On()
+    {
+        on_ = true;
+    }
+    void Off()
+    {
+        on_ = false;
+    }
     float Process()
     {
         float sig;
@@ -29,18 +39,51 @@ struct voice
     }
     void set_note(float nn) { osc_.SetFreq(daisysp::mtof(nn)); }
 
-    daisysp::Oscillator osc_;
-    float               amp_, midibase_;
-    bool                on_;
+    private:
+        bool                on_;
+        daisysp::Oscillator osc_;
+        float               amp_, midibase_;
 };
 
 voice v[NUM_VOICES];
-float scale[16] = {0.f, 2.f, 4.f, 5.f, 7.f, 9.f, 11.f, 12.f,
-    0.f, 1.f, 3.f, 0.f, 6.f, 8.f, 10.f, 0.f};
+static const uint8_t scale[16] = {0, 2, 4, 5, 7, 9, 11, 12,
+    0, 1, 3, 0, 6, 8, 10, 0};
 float base_note = scale[0];
+
+const char* note_names[16] = {
+    "C", 
+    "D",
+    "E",
+    "F",
+    "G",
+    "A",
+    "B",
+    "C",
+    "C", // begin top row
+    "C#",
+    "D#",
+    "C",
+    "F#",
+    "G#",
+    "A#",
+    "C"
+};
+
+extern FontDef Font_16x26;
 
 float knob_vals[8];
 // float cvvals[4];
+
+void RedrawRectangles(float* rectangle_heights)
+{ 
+    for(int i = 0; i < NUM_VOICES; i++)
+    {
+        // 5-10 is a good width, start them at x1=30
+        // max height is 64, start at y1=63
+        hw.display.DrawRect(30 + i * 8, 63, 35 + i * 8, 63 - floor(63 * rectangle_heights[i]), true);
+        hw.display.Update();
+    }
+}
 
 // This runs at a fixed rate, to prepare audio samples
 void callback(float *in, float *out, size_t size)
@@ -50,8 +93,17 @@ void callback(float *in, float *out, size_t size)
 
     // grab the knob vals once and conveniently store them
     // in case we use them multiple times
+    bool knob_change = false;
+
     for(int i=0; i < 8; i++)
     {
+        // float current_knob_value = hw.GetKnobValue(i);
+        // float knob_change_amount = std::abs(current_knob_value - knob_vals[i]);
+        // if (knob_change_amount >= 0.00001)
+        // {
+            // knob_change = true;
+        // }
+        // knob_vals[i] = current_knob_value;
         knob_vals[i] = hw.GetKnobValue(i);
     }
 
@@ -63,6 +115,17 @@ void callback(float *in, float *out, size_t size)
         if (hw.KeyboardState(i))
         {
             base_note = scale[i];
+
+            // this was ugly, but the only way I could find to avoid
+            // getting yelled about defining note_names above
+            char* note_name = const_cast<char*>(note_names[i]);
+            // hw.display.Init();
+            hw.display.Fill(false);
+            // hw.display.Update();
+            hw.display.SetCursor(0, 0);
+            hw.display.WriteString(note_name, Font_16x26, true);
+            RedrawRectangles(knob_vals);
+            hw.display.Update();
         }
     }
 
@@ -71,11 +134,21 @@ void callback(float *in, float *out, size_t size)
         v[i].set_note((12.0f * i) + 24.0f + base_note);
         if(knob_vals[i] > 0)
         {
-            v[i].on_ = true;
+            v[i].On();
         }
+
+        // RedrawRectangles(knob_vals);
+        // if (knob_change){
+            // 5-10 is a good width, start them at x1=30
+            // max height is 64, start at y1=63
+            // hw.display.DrawRect(30 + i * 8, 63, 35 + i * 8, 63 - floor(63 * knob_vals[i]), true);
+            // hw.display.Update();
+        // }
     }
 
-    float sig, send;
+    // hw.display.Update();
+
+    float sig;
     // Audio is interleaved stereo by default
     for (size_t i = 0; i < size; i+=2)
     {
@@ -83,7 +156,7 @@ void callback(float *in, float *out, size_t size)
         for(int i = 0; i < NUM_VOICES; i++)
         {
             sig += v[i].Process() * knob_vals[i];
-        }
+       }
 
         out[i] = sig; // left
         out[i+1] = sig; // right
@@ -98,6 +171,12 @@ int main(void)
         v[i].Init();
         v[i].set_note((12.0f * i) + 24.0f + scale[0]);
     }
+
+    extern FontDef Font_6x8;
+    // std::string greeting = "hello";
+    char* greeting = "hello";
+    hw.display.WriteString(greeting, Font_6x8, true);
+    hw.display.Update();
 
     hw.StartAudio(callback);
     hw.StartAdc();
